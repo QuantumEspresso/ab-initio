@@ -1,6 +1,7 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include <cmath>
 #include "var.h"
 
 using namespace std;
@@ -107,6 +108,142 @@ void get_ndtset(string input, vector<int> &ndtset)
 		ndtset.push_back(1);
 }
 
+// function converting word to number
+double word_to_num(string &word, int line_number)
+{
+	vector<double> numbers;
+	vector<char> operators;
+	string::size_type check_point;
+	int open_brackets=0;
+	int close_brackets=0;
+	// separating word on numbers and operators and checking brackets
+	while(word.size()!=0)
+	{
+		if(word[0]=='(')
+		{
+			open_brackets++;
+			operators.push_back(word[0]);
+			word.erase(word.begin());
+		}
+		else if(word[0]==')')
+		{
+			close_brackets++;
+			if(close_brackets>open_brackets)
+			{
+				cerr<<"There are wrong brackets in number in line "<<line_number<<endl;
+				exit(1);
+			}
+			operators.push_back(word[0]);
+			word.erase(word.begin());
+		}
+		else if(word[0]=='*' || word[0]=='/' || word[0]=='^')
+		{
+			operators.push_back(word[0]);
+			word.erase(word.begin());
+		}
+		else{
+			if(numbers.size()<operators.size()-open_brackets-close_brackets)
+			{
+				cerr<<"Wrong mathematical expression in line "<<line_number<<endl;
+				exit(1);
+			}
+			if( (word[0]=='+' || word[0]=='-') && numbers.size()!=operators.size()-open_brackets-close_brackets )
+			{
+				operators.push_back('+');
+			}
+			try
+			{
+				numbers.push_back(stod(word,&check_point));
+			}
+			catch (const std::invalid_argument& ia)
+			{
+				cerr<<"Wrong mathematical expression in line "<<line_number<<endl;
+				exit(1);
+			}
+			word=word.substr(check_point);
+		}
+	}
+	if(close_brackets!=open_brackets)
+	{
+		cerr<<"There are wrong brackets in number in line "<<line_number<<endl;
+		exit(1);
+	}
+	// loop that makes next math operations until all is done
+	while(operators.size()!=0)
+	{
+	// first goes searching for most nested first bracket
+		int num_open_bracket=-1, num_closing_bracket=-1;
+		int num_operations=0;
+		int temp_operations=0;
+		for(unsigned int i=0; i<operators.size(); i++){
+			if(operators[i]=='('){
+				num_open_bracket=i;
+				num_operations+=temp_operations;
+			}
+			else if(operators[i]==')'){
+				num_closing_bracket=i;
+				break;
+			}
+			else
+				temp_operations++;
+		}
+	// if there is no bracket set borders outside operators vector
+		if(num_closing_bracket==-1)
+		{
+			num_closing_bracket=operators.size();
+		}
+		// for most nested bracket search for power sign (^)
+		for(int i=num_open_bracket+1; i<num_closing_bracket; i++){
+			if(operators[i]=='^')
+			{
+				numbers[num_operations+num_open_bracket+1-i] = pow( numbers[num_operations+num_open_bracket+1-i], numbers[num_operations+num_open_bracket+2-i] );
+				numbers.erase(numbers.begin()+num_operations+num_open_bracket+2-i);
+				operators.erase(operators.begin()+i);
+				num_closing_bracket--;
+				i--;
+			}
+		}
+		// for most nested bracket search for */ sign
+		for(int i=num_open_bracket+1; i<num_closing_bracket; i++){
+			if(operators[i]=='*')
+			{
+				numbers[num_operations+num_open_bracket+1-i] *= numbers[num_operations+num_open_bracket+2-i];
+				numbers.erase(numbers.begin()+num_operations+num_open_bracket+2-i);
+				operators.erase(operators.begin()+i);
+				num_closing_bracket--;
+				i--;
+			}
+			if(operators[i]=='/')
+			{
+				numbers[num_operations+num_open_bracket+1-i] /= numbers[num_operations+num_open_bracket+2-i];
+				numbers.erase(numbers.begin()+num_operations+num_open_bracket+2-i);
+				operators.erase(operators.begin()+i);
+				num_closing_bracket--;
+				i--;
+			}
+		}
+		// for most nested bracket search for + sign
+		for(int i=num_open_bracket+1; i<num_closing_bracket; i++){
+			if(operators[i]=='+')
+			{
+				numbers[num_operations+num_open_bracket+1-i] += numbers[num_operations+num_open_bracket+2-i];
+				numbers.erase(numbers.begin()+num_operations+num_open_bracket+2-i);
+				operators.erase(operators.begin()+i);
+				num_closing_bracket--;
+				i--;
+			}
+		}
+	// checking if there are brackets to delete
+		if(num_closing_bracket!=0)
+		{
+			operators.erase(operators.begin()+num_open_bracket);
+			operators.erase(operators.begin()+num_open_bracket);
+		}
+	}
+	
+	return numbers.at(0);
+}
+
 // function to get variables from input file to accurate datasets
 void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 {
@@ -119,8 +256,10 @@ void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 	}
 	string line;
 	vector<string> words;
+	int line_number=0;
 	while(getline(input_file, line))
 	{
+		line_number++;
 		string word = ""; 
 		for (auto x : line) 
 		{ 
