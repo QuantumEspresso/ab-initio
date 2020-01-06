@@ -244,6 +244,94 @@ double word_to_num(string &word, int line_number)
 	return numbers.at(0);
 }
 
+// function for managing dataset variables
+void word_to_var(string &word, string &var_name, vector <int> ndtset, vector<dataset> &dtset, vector<int> &dts_numbers, int line_number)
+{
+	string::size_type check_point;
+	// first we separate variable name from dataset coordinates
+	for(unsigned int i=0; i<=word.size();i++)
+	{
+		if(!isalpha(word[i]) || i==word.size())
+		{
+			var_name=word.substr(0,i);
+			word=word.substr(i, word.size());
+			break;
+		}
+	}
+	// and we check if this variable exist
+	if(dtset.at(0).data.find(var_name)==dtset.at(0).data.end())
+	{
+		cerr<<"Error in line "<<line_number<<": There is no such variable as \""<<var_name<<"\"!"<<endl;
+		exit(1);
+	}
+	// now we extract dataset coordinates for this variable
+	if(word.size()==0)
+	{
+		for(unsigned int i=0; i<ndtset.size();i++)
+		{
+			dts_numbers.push_back(0);
+		}
+	}
+	while(word.size()!=0)
+	{
+		if(word[0]=='?')
+		{
+			dts_numbers.push_back(0);
+			word=word.substr(1, word.size());
+		}
+		else if(word[0]==':')
+		{
+			dts_numbers.push_back(-1);
+			word=word.substr(1, word.size());
+		}
+		else if(word[0]=='+')
+		{
+			dts_numbers.push_back(-2);
+			word=word.substr(1, word.size());
+		}
+		else if(word[0]=='*')
+		{
+			dts_numbers.push_back(-3);
+			word=word.substr(1, word.size());
+		}
+		else if(word[0]==',')
+		{
+			word=word.substr(1, word.size());
+		}
+		else
+		{
+			try
+			{
+				dts_numbers.push_back(stoi(word,&check_point));
+			}
+			catch (const std::invalid_argument& ia)
+			{
+				cerr<<"Wrong dataset expression in line "<<line_number<<endl;
+				exit(1);
+			}
+			if(dts_numbers.back()<=0)
+			{
+				cerr<<"Error in line "<<line_number<<": In variable \""<<var_name<<"\": there are only positive dataset numbers!"<<endl;
+				exit(1);
+			}
+			word=word.substr(check_point);
+		}
+	}
+	if(dts_numbers.size()!=ndtset.size())
+	{
+		cerr<<"Error in line "<<line_number<<": In variable \""<<var_name<<"\": wrong datatset dimension!"<<endl;
+		exit(1);
+	}
+	for(unsigned int i=0; i<dts_numbers.size();i++)
+	{
+		if(dts_numbers[i]>ndtset[i])
+		{
+			cerr<<"Error in line "<<line_number<<": In variable \""<<var_name<<"\": there is no such datatset!"<<endl;
+			exit(1);
+		}
+	}
+}
+
 // function to get variables from input file to accurate datasets
 void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 {
@@ -256,6 +344,13 @@ void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 	}
 	string line;
 	vector<string> words;
+	string current_word;
+	string semicolon_word;
+	vector<double> past_numbers;
+	vector<double> numbers;
+	vector<int> dtset_coordinates;
+	vector<int> semicolon_coordinates;
+	bool was_semicolon=false;
 	int line_number=0;
 	while(getline(input_file, line))
 	{
@@ -291,11 +386,26 @@ void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 		{
 			if( isdigit(words.at(i)[0]) || words.at(i)[0]=='.' || words.at(i)[0]=='-' || ( (words.at(i)[0]=='E' || words.at(i)[0]=='e') && (words.at(i)[1]=='-' || isdigit(words.at(i)[1])) ) )
 			{
-				//mamy liczbę (obługa działań mat.)
+				//we have number (math operations handling)
+				if(current_word.size()!=0)
+					numbers.push_back( word_to_num(word, line_number) );
+				else
+				{
+					cerr<<"Error in line "<<line_number<<": Before putting numbers there must be a variable name first!"<<endl;
+					exit(1);
+				}
 			}
 			else
 			{
-				//mamy słowo (obsługa datasetów)
+				//we have word (dataset handling)
+				//first we check if there are collected numbers for previous variable to assign
+				
+				// then we check taken word
+				word_to_var(word, current_word, ndtset, dtset, dtset_coordinates, line_number);
+				// and search for special signs
+				// if there was semicolon we must check if variable name matches as well as dataset coordinates
+				
+				
 			}
 		}
 		words.clear();
