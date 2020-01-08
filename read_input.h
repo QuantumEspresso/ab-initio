@@ -259,7 +259,7 @@ void word_to_var(string &word, string &var_name, vector <int> ndtset, vector<dat
 		}
 	}
 	// and we check if this variable exist
-	if(dtset.at(0).data.find(var_name)==dtset.at(0).data.end())
+	if( dtset.at(0).data.find(var_name)==dtset.at(0).data.end() && !word.compare("ndtset") )
 	{
 		cerr<<"Error in line "<<line_number<<": There is no such variable as \""<<var_name<<"\"!"<<endl;
 		exit(1);
@@ -317,9 +317,9 @@ void word_to_var(string &word, string &var_name, vector <int> ndtset, vector<dat
 			word=word.substr(check_point);
 		}
 	}
-	if(dts_numbers.size()!=ndtset.size())
+	if( dts_numbers.size()!=ndtset.size() )
 	{
-		cerr<<"Error in line "<<line_number<<": In variable \""<<var_name<<"\": wrong datatset dimension!"<<endl;
+		cerr<<"Error in line "<<line_number<<": In variable \""<<var_name<<"\": wrong dataset dimension!"<<endl;
 		exit(1);
 	}
 	for(unsigned int i=0; i<dts_numbers.size();i++)
@@ -346,11 +346,13 @@ void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 	vector<string> words;
 	string current_word;
 	string semicolon_word;
-	vector<double> past_numbers;
+	vector<double> semicolon_numbers;
 	vector<double> numbers;
 	vector<int> dtset_coordinates;
 	vector<int> semicolon_coordinates;
+	map< string, vector<double> >::iterator it;
 	bool was_semicolon=false;
+	bool was_times_plus=false;
 	int line_number=0;
 	while(getline(input_file, line))
 	{
@@ -388,7 +390,7 @@ void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 			{
 				//we have number (math operations handling)
 				if(current_word.size()!=0)
-					numbers.push_back( word_to_num(word, line_number) );
+					numbers.push_back( word_to_num(words[i], line_number) );
 				else
 				{
 					cerr<<"Error in line "<<line_number<<": Before putting numbers there must be a variable name first!"<<endl;
@@ -399,16 +401,176 @@ void read_input(string input,vector<dataset> &dtset,const vector<int> ndtset)
 			{
 				//we have word (dataset handling)
 				//first we check if there are collected numbers for previous variable to assign
-				
+				if(current_word=="ndtset")
+				{
+					numbers.clear();
+					dtset_coordinates.clear();
+				}
+				else if(was_semicolon)
+				{
+					semicolon_numbers=numbers;
+					numbers.clear();
+					dtset_coordinates.clear();
+				}
+				else if(numbers.size()!=0)
+				{
+					for(unsigned int j=0; j<dtset.size(); j++)
+					{
+						bool match=true;
+						bool plus=false;
+						bool times=false;
+						for(unsigned int k=0; k<dtset.at(j).dtset_num.size(); k++)
+						{
+							if(dtset_coordinates[k]!=dtset[j].dtset_num[k] && dtset_coordinates[k]>0 )
+							{
+								match=false;
+								break;
+							}
+							else if(dtset_coordinates[k]==-2)// plus sign
+								plus=true;
+							else if(dtset_coordinates[k]==-3)// times sign
+								times=true;
+						}
+						if(match)
+						{
+							if(plus)
+							{
+								dtset[j].data.find(current_word)->second=semicolon_numbers;
+								for(unsigned int k=0; k<semicolon_numbers.size(); k++)
+									semicolon_numbers[k]+=numbers[k];
+							}
+							else if(times)
+							{
+								dtset[j].data.find(current_word)->second=semicolon_numbers;
+								for(unsigned int k=0; k<semicolon_numbers.size(); k++)
+									semicolon_numbers[k]*=numbers[k];
+							}
+							else
+								dtset[j].data.find(current_word)->second=numbers;
+						}
+					}
+					numbers.clear();
+					semicolon_numbers.clear();
+					dtset_coordinates.clear();
+					semicolon_coordinates.clear();
+				}
+				else if( numbers.size()==0 && current_word.size()!=0 )
+				{
+					cerr<<"Error in line "<<line_number<<": There cannot be variable without values!"<<endl;
+					exit(1);
+				}
 				// then we check taken word
-				word_to_var(word, current_word, ndtset, dtset, dtset_coordinates, line_number);
+				word_to_var(words[i], current_word, ndtset, dtset, dtset_coordinates, line_number);
 				// and search for special signs
 				// if there was semicolon we must check if variable name matches as well as dataset coordinates
-				
-				
+				if(!was_semicolon)
+				{
+					for(unsigned int j=0; j<dtset_coordinates.size(); j++)
+					{
+						if(dtset_coordinates[j]==-1 && !was_semicolon)
+							was_semicolon=true;
+						else if(dtset_coordinates[j]==-1 && was_semicolon)
+						{
+							cerr<<"Error in line "<<line_number<<": There cannot be more than one ':' sign in one variable!"<<endl;
+							exit(1);
+						}
+						else if(dtset_coordinates[j]<-1)
+						{
+							cerr<<"Error in line "<<line_number<<": There cannot be '+' or '*' sign without first specifying ':' sign!"<<endl;
+							exit(1);
+						}
+					}
+					if(was_semicolon)
+					{
+						semicolon_word=current_word;
+						semicolon_coordinates=dtset_coordinates;
+					}
+				}
+				else
+				{
+					for(unsigned int j=0; j<dtset_coordinates.size(); j++)
+					{
+						if(dtset_coordinates[j]==-1)
+						{
+							cerr<<"Error in line "<<line_number<<": There cannot be more than one ':' sign in one variable!"<<endl;
+							exit(1);
+						}
+						else if(dtset_coordinates[j]<-1 && !was_times_plus)
+						{
+							was_times_plus=true;
+						}
+						else if(dtset_coordinates[j]<-1 && was_times_plus)
+						{
+							cerr<<"Error in line "<<line_number<<": There cannot be more than one '+*' sign in one variable!"<<endl;
+							exit(1);
+						}
+						else if(dtset_coordinates[j]!=semicolon_coordinates[j])
+						{
+							cerr<<"Error in line "<<line_number<<": Dataset coordinates of variables \""<<current_word<<"\" don't match!"<<endl;
+							exit(1);
+						}
+					}
+					if(was_semicolon && !was_times_plus)
+					{
+						cerr<<"Error in line "<<line_number<<": There cannot be '+*' sign without first specifying ':' sign!"<<endl;
+						exit(1);
+					}
+					was_semicolon=false;
+				}
 			}
 		}
 		words.clear();
+	}
+	if(current_word=="ndtset")
+	{
+		
+	}
+	else if(was_semicolon)
+	{
+		semicolon_numbers=numbers;
+	}
+	else if(numbers.size()!=0)
+	{
+		for(unsigned int j=0; j<dtset.size(); j++)
+		{
+			bool match=true;
+			bool plus=false;
+			bool times=false;
+			for(unsigned int k=0; k<dtset.at(j).dtset_num.size(); k++)
+			{
+				if(dtset_coordinates[k]!=dtset[j].dtset_num[k] && dtset_coordinates[k]>0 )
+				{
+					match=false;
+					break;
+				}
+				else if(dtset_coordinates[k]==-2)// plus sign
+					plus=true;
+				else if(dtset_coordinates[k]==-3)// times sign
+					times=true;
+			}
+			if(match)
+			{
+				if(plus)
+				{
+					dtset[j].data.find(current_word)->second=semicolon_numbers;
+					for(unsigned int k=0; k<semicolon_numbers.size(); k++)
+						semicolon_numbers[k]+=numbers[k];
+				}
+				else if(times)
+				{
+					dtset[j].data.find(current_word)->second=semicolon_numbers;
+					for(unsigned int k=0; k<semicolon_numbers.size(); k++)
+						semicolon_numbers[k]*=numbers[k];
+				}
+				else
+					dtset[j].data.find(current_word)->second=numbers;
+			}
+		}
+	}
+	else if( numbers.size()==0 && current_word.size()!=0 )
+	{
+		cerr<<"Error in line "<<line_number<<": There cannot be variable without values!"<<endl;
+		exit(1);
 	}
 	input_file.close();
 }
