@@ -1,7 +1,7 @@
 #include "spglib.h"
 #include <vector>
 #include <map>
-#include<stdio.h>
+#include<iostream>
 
 using namespace std;
 
@@ -61,11 +61,11 @@ void dataset::check_sym()
 	
 	int xred_size = (int)data["xred"].size();
 	double position[xred_size/3][3];
-	for(int i=0; 3*i<xred_size;i++)
+	for(int i=0; i*3<xred_size;i++)
 	{
-		position[i][0]=data["xred"][i];
-		position[i][1]=data["xred"][i+1];
-		position[i][2]=data["xred"][i+2];
+		position[i][0]=data["xred"][3*i];
+		position[i][1]=data["xred"][3*i+1];
+		position[i][2]=data["xred"][3*i+2];
 	}
 	int types_num = (int)data["natom"][0];
 	int types[types_num];
@@ -73,7 +73,7 @@ void dataset::check_sym()
 	{
 		int ntypat_num = (int)data["typat"][i];
 		types[i]=data["ntypat"][ntypat_num];
-	}
+	}	
 	
 	int num_atom = types_num;
 	double symprec = 1e-5;

@@ -17,6 +17,8 @@ int main(int argc, char *argv[]){
 	init_dataset(ndtset, current_dataset, dtset, -1);
 	current_dataset.~vector<int>(); //removing unused vector
 	read_input(argv[1], dtset, ndtset);
+
+// work in progress: checking symmetry of given systems with SPGLIB function
 	for(unsigned int i=0; i<dtset.size(); i++)
 	{
 		dtset[i].check_sym();
